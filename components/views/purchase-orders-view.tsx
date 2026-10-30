@@ -1,8 +1,9 @@
 'use client';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, Product, PurchaseOrder, PoLineItem } from '@/lib/db-client';
+import { db, Product, PurchaseOrder, PoLineItem, Movement } from '@/lib/db-client';
+import { withMovementHash } from '@/lib/audit-log';
 import { formatDate, formatCurrency } from '@/lib/format';
-import { ClipboardList, Plus, X, AlertTriangle, Package, Check, Truck } from 'lucide-react';
+import { ClipboardList, Plus, X, AlertTriangle, Package, Check, Truck, PackagePlus } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
@@ -76,7 +77,11 @@ export function PurchaseOrdersView() {
 
 function AddPODialog({ onClose, toast, user }: { onClose: () => void; toast: any; user: any }) {
   const [po, setPo] = useState({ supplierName: '', notes: '' });
-  const [lineItems, setLineItems] = useState<{ product: Product; qty: number }[]>([]);
+  const [lineItems, setLineItems] = useState<{ product: Product; qty: number; isNew?: boolean }[]>([]);
+  const [showNewProduct, setShowNewProduct] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+    name: '', sku: '', baseUnitSalePrice: 0, cost: 0, qty: 1,
+  });
 
   const products = useLiveQuery(() => db.products.toArray(), []) ?? [];
   const lowStockProducts = products.filter((p) => p.quantity <= p.lowStockThreshold);
@@ -93,12 +98,37 @@ function AddPODialog({ onClose, toast, user }: { onClose: () => void; toast: any
     setLineItems([...lineItems, { product: p, qty: suggestedQty(p) }]);
   };
 
-  const updateQty = (id: number, qty: number) => {
-    setLineItems(lineItems.map((l) => l.product.id === id ? { ...l, qty: Math.max(1, qty) } : l));
+  const addNewProduct = () => {
+    if (!newProduct.name || !newProduct.sku) {
+      toast({ type: 'error', title: 'Name and SKU required' });
+      return;
+    }
+    if (products.find((p) => p.sku === newProduct.sku.toUpperCase())) {
+      toast({ type: 'error', title: 'SKU already exists', description: 'Use a different SKU' });
+      return;
+    }
+    const tempProduct: Product = {
+      name: newProduct.name,
+      sku: newProduct.sku.toUpperCase(),
+      storeId: 1,
+      quantity: 0,
+      lowStockThreshold: 5,
+      baseUnitSalePrice: newProduct.baseUnitSalePrice,
+      cost: newProduct.cost,
+      updatedAt: Date.now(),
+    };
+    setLineItems([...lineItems, { product: tempProduct, qty: newProduct.qty, isNew: true }]);
+    setNewProduct({ name: '', sku: '', baseUnitSalePrice: 0, cost: 0, qty: 1 });
+    setShowNewProduct(false);
+    toast({ type: 'success', title: 'New product added to PO', description: 'Will be created in inventory when PO is saved' });
   };
 
-  const removeLine = (id: number) => {
-    setLineItems(lineItems.filter((l) => l.product.id !== id));
+  const updateQty = (idx: number, qty: number) => {
+    setLineItems(lineItems.map((l, i) => i === idx ? { ...l, qty: Math.max(1, qty) } : l));
+  };
+
+  const removeLine = (idx: number) => {
+    setLineItems(lineItems.filter((_, i) => i !== idx));
   };
 
   const save = async () => {
@@ -112,10 +142,28 @@ function AddPODialog({ onClose, toast, user }: { onClose: () => void; toast: any
       notes: po.notes || undefined,
       createdAt: Date.now(),
     });
+
     for (const item of lineItems) {
+      let productId = item.product.id;
+
+      // If new product, create it now (with 0 stock — will be added on receive)
+      if (item.isNew || !productId) {
+        const newId = await db.products.add({
+          name: item.product.name,
+          sku: item.product.sku,
+          storeId: 1,
+          quantity: 0,
+          lowStockThreshold: 5,
+          baseUnitSalePrice: item.product.baseUnitSalePrice ?? 0,
+          cost: item.product.cost ?? 0,
+          updatedAt: Date.now(),
+        });
+        productId = newId as number;
+      }
+
       await db.poLineItems.add({
         poId: poId as number,
-        productId: item.product.id!,
+        productId: productId!,
         qty: item.qty,
         receivedQty: 0,
       });
@@ -135,7 +183,7 @@ function AddPODialog({ onClose, toast, user }: { onClose: () => void; toast: any
         <div className="p-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Supplier name *</label>
+              <label className="text-sm font-semibold text-muted-foreground mb-1.5 block">Supplier name *</label>
               <input
                 value={po.supplierName}
                 onChange={(e) => setPo({ ...po, supplierName: e.target.value })}
@@ -144,7 +192,7 @@ function AddPODialog({ onClose, toast, user }: { onClose: () => void; toast: any
               />
             </div>
             <div>
-              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Notes</label>
+              <label className="text-sm font-semibold text-muted-foreground mb-1.5 block">Notes</label>
               <input
                 value={po.notes}
                 onChange={(e) => setPo({ ...po, notes: e.target.value })}
@@ -189,27 +237,83 @@ function AddPODialog({ onClose, toast, user }: { onClose: () => void; toast: any
 
           {/* Line items */}
           <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
-              Line items ({lineItems.length})
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-semibold text-muted-foreground">
+                Line items ({lineItems.length})
+              </label>
+              <button
+                onClick={() => setShowNewProduct(!showNewProduct)}
+                className="btn-secondary text-xs flex items-center gap-1.5 px-3 py-1.5"
+              >
+                <PackagePlus className="w-3.5 h-3.5" /> Add New Product
+              </button>
+            </div>
+
+            {/* New product form */}
+            {showNewProduct && (
+              <div className="border border-primary/30 rounded-lg p-3 bg-primary/5 mb-2 space-y-2">
+                <div className="text-xs font-semibold text-primary">Add a new product (will be created in inventory)</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    value={newProduct.name}
+                    onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                    placeholder="Product name *"
+                    className="input-premium text-sm"
+                  />
+                  <input
+                    value={newProduct.sku}
+                    onChange={(e) => setNewProduct({ ...newProduct, sku: e.target.value.toUpperCase() })}
+                    placeholder="SKU *"
+                    className="input-premium text-sm font-mono"
+                  />
+                  <input
+                    type="number"
+                    value={newProduct.cost}
+                    onChange={(e) => setNewProduct({ ...newProduct, cost: +e.target.value })}
+                    placeholder="Cost price"
+                    className="input-premium text-sm"
+                  />
+                  <input
+                    type="number"
+                    value={newProduct.baseUnitSalePrice}
+                    onChange={(e) => setNewProduct({ ...newProduct, baseUnitSalePrice: +e.target.value })}
+                    placeholder="Sale price"
+                    className="input-premium text-sm"
+                  />
+                  <input
+                    type="number"
+                    value={newProduct.qty}
+                    onChange={(e) => setNewProduct({ ...newProduct, qty: +e.target.value })}
+                    placeholder="Order qty"
+                    className="input-premium text-sm"
+                  />
+                  <button onClick={addNewProduct} className="btn-primary text-sm">
+                    Add to PO
+                  </button>
+                </div>
+              </div>
+            )}
+
             {lineItems.length === 0 ? (
               <div className="text-center py-6 text-muted-foreground text-sm bg-muted/30 rounded-lg">
-                Add products manually or use "Add all suggested" above
+                Add existing products (below) or new products (above) to this PO
               </div>
             ) : (
               <div className="space-y-1">
-                {lineItems.map((l) => (
-                  <div key={l.product.id} className="flex items-center gap-2 bg-muted/40 rounded-lg p-2">
+                {lineItems.map((l, idx) => (
+                  <div key={idx} className="flex items-center gap-2 bg-muted/40 rounded-lg p-2">
                     <Package className="w-4 h-4 text-muted-foreground shrink-0" />
+                    {l.isNew && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary font-semibold">NEW</span>}
                     <span className="flex-1 text-sm truncate">{l.product.name}</span>
+                    <span className="text-xs text-muted-foreground">{l.product.sku}</span>
                     <input
                       type="number"
                       value={l.qty}
-                      onChange={(e) => updateQty(l.product.id!, +e.target.value)}
+                      onChange={(e) => updateQty(idx, +e.target.value)}
                       className="input-premium w-20 text-sm"
                       min={1}
                     />
-                    <button onClick={() => removeLine(l.product.id!)} className="btn-ghost p-1">
+                    <button onClick={() => removeLine(idx)} className="btn-ghost p-1">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -218,9 +322,9 @@ function AddPODialog({ onClose, toast, user }: { onClose: () => void; toast: any
             )}
           </div>
 
-          {/* Manual add */}
+          {/* Manual add existing */}
           <div>
-            <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">Add product manually</label>
+            <label className="text-sm font-semibold text-muted-foreground mb-1.5 block">Add existing product</label>
             <select
               value=""
               onChange={(e) => {
@@ -263,20 +367,40 @@ function ViewPODialog({ po, onClose, toast, user }: { po: PurchaseOrder; onClose
   }, [po.id]) ?? [];
 
   const markReceived = async () => {
-    if (!confirm('Mark all items as received? Stock will be updated.')) return;
+    if (!confirm('Mark all items as received? Stock will be updated and movements recorded.')) return;
     for (const item of lineItems) {
       const product = item.product;
+      const receiveQty = item.qty - (item.receivedQty ?? 0);
+      if (receiveQty <= 0) continue;
+
+      // Update product stock (or create if missing)
       if (product) {
-        const receiveQty = item.qty - (item.receivedQty ?? 0);
         await db.products.update(product.id!, {
           quantity: product.quantity + receiveQty,
           updatedAt: Date.now(),
         });
       }
+      // Note: if product is null, it was a "new product" line that should have been created on save
+
+      // Create Stock In movement (linked to PO)
+      if (user) {
+        const movementBase: Omit<Movement, 'id' | 'recordHash'> = {
+          productId: item.productId,
+          type: 'in',
+          storeId: 1,
+          qty: receiveQty,
+          reason: `PO received: ${po.poNumber}`,
+          userId: user.id!,
+          createdAt: Date.now(),
+        };
+        const movement = await withMovementHash(movementBase);
+        await db.movements.add(movement);
+      }
+
       await db.poLineItems.update(item.id!, { receivedQty: item.qty });
     }
     await db.purchaseOrders.update(po.id!, { status: 'received' });
-    toast({ type: 'success', title: 'PO received', description: 'Stock updated' });
+    toast({ type: 'success', title: 'PO received', description: 'Stock updated + movements recorded' });
     onClose();
   };
 

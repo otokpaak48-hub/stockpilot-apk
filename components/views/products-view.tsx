@@ -197,6 +197,22 @@ export function ProductsView() {
   );
 }
 
+// 11 measurement unit presets
+const UNIT_PRESETS = [
+  { id: 'none', label: 'None (single unit)', packSize: 0, cardSize: 0, baseUnitName: 'unit', packName: '', cardName: '' },
+  { id: 'pharmacy', label: 'Pharmacy (tablet → Card → Pack)', packSize: 30, cardSize: 10, baseUnitName: 'tablet', packName: 'Pack', cardName: 'Card' },
+  { id: 'wire', label: 'Wire/Fabric (meter → Roll)', packSize: 0, cardSize: 100, baseUnitName: 'meter', packName: '', cardName: 'Roll' },
+  { id: 'fabric_yard', label: 'Fabric yards (yard → Bolt)', packSize: 0, cardSize: 40, baseUnitName: 'yard', packName: '', cardName: 'Bolt' },
+  { id: 'liquid_ml', label: 'Liquid ml (ml → Bottle)', packSize: 0, cardSize: 1000, baseUnitName: 'ml', packName: '', cardName: 'Bottle' },
+  { id: 'liquid_l', label: 'Liquid liters (liter → Gallon)', packSize: 0, cardSize: 4, baseUnitName: 'liter', packName: '', cardName: 'Gallon' },
+  { id: 'dozen', label: 'Pieces/Dozen (piece → Dozen)', packSize: 0, cardSize: 12, baseUnitName: 'piece', packName: '', cardName: 'Dozen' },
+  { id: 'carton', label: 'Pieces/Carton (piece → Carton)', packSize: 0, cardSize: 24, baseUnitName: 'piece', packName: '', cardName: 'Carton' },
+  { id: 'weight_g', label: 'Weight grams (gram → Pack)', packSize: 0, cardSize: 500, baseUnitName: 'gram', packName: '', cardName: 'Pack' },
+  { id: 'weight_kg', label: 'Weight kg (kg → Bag)', packSize: 0, cardSize: 50, baseUnitName: 'kg', packName: '', cardName: 'Bag' },
+  { id: 'length_cm', label: 'Length cm (cm → Meter)', packSize: 0, cardSize: 100, baseUnitName: 'cm', packName: '', cardName: 'Meter' },
+  { id: 'custom', label: 'Custom', packSize: 0, cardSize: 0, baseUnitName: 'unit', packName: '', cardName: '' },
+];
+
 function ProductDialog({
   product,
   categories,
@@ -214,6 +230,51 @@ function ProductDialog({
       baseUnitSalePrice: 0, cost: 0, updatedAt: Date.now(),
     }
   );
+
+  // Determine current preset
+  const currentPresetId = (() => {
+    if (!p.packSize && !p.cardSize) {
+      if (!p.baseUnitName || p.baseUnitName === 'unit') return 'none';
+      return 'custom';
+    }
+    const match = UNIT_PRESETS.find((u) =>
+      u.packSize === (p.packSize ?? 0) &&
+      u.cardSize === (p.cardSize ?? 0) &&
+      u.baseUnitName === p.baseUnitName
+    );
+    return match?.id ?? 'custom';
+  })();
+
+  const applyPreset = (presetId: string) => {
+    const preset = UNIT_PRESETS.find((u) => u.id === presetId);
+    if (!preset) return;
+    setP({
+      ...p,
+      packSize: preset.packSize || undefined,
+      cardSize: preset.cardSize || undefined,
+      baseUnitName: preset.baseUnitName,
+      packName: preset.packName || undefined,
+      cardName: preset.cardName || undefined,
+    });
+  };
+
+  // Top-down pricing: pack price → auto-calc card → auto-calc unit
+  const handlePackPriceChange = (packPrice: number) => {
+    const cardSize = p.cardSize ?? 1;
+    const packSize = p.packSize ?? 1;
+    const cardPrice = packPrice / packSize;
+    const unitPrice = cardPrice / cardSize;
+    setP({
+      ...p,
+      packSalePrice: packPrice,
+      cardSalePrice: Math.round(cardPrice * 100) / 100,
+      baseUnitSalePrice: Math.round(unitPrice * 100) / 100,
+    });
+  };
+
+  const hasUnits = (p.packSize ?? 0) > 0 || (p.cardSize ?? 0) > 0;
+  const hasPack = (p.packSize ?? 0) > 0;
+  const hasCard = (p.cardSize ?? 0) > 0;
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -267,8 +328,99 @@ function ProductDialog({
             </Field>
           </div>
 
+          {/* Measurement Units Section */}
+          <div className="border border-border rounded-lg p-3 bg-muted/20">
+            <div className="flex items-center gap-2 mb-2">
+              <Package className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold">Measurement units</span>
+            </div>
+            <Field label="Preset">
+              <select
+                value={currentPresetId}
+                onChange={(e) => applyPreset(e.target.value)}
+                className="input-premium text-sm"
+              >
+                {UNIT_PRESETS.map((u) => (
+                  <option key={u.id} value={u.id}>{u.label}</option>
+                ))}
+              </select>
+            </Field>
+
+            {currentPresetId !== 'none' && (
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <Field label={`Base unit name`}>
+                  <input
+                    value={p.baseUnitName ?? 'unit'}
+                    onChange={(e) => setP({ ...p, baseUnitName: e.target.value })}
+                    className="input-premium text-sm"
+                    placeholder="tablet, meter, piece..."
+                  />
+                </Field>
+                {hasCard && (
+                  <Field label={`${p.cardName ?? 'Card'} size (base units)`}>
+                    <input
+                      type="number"
+                      value={p.cardSize ?? 0}
+                      onChange={(e) => setP({ ...p, cardSize: +e.target.value })}
+                      className="input-premium text-sm"
+                      placeholder="e.g. 10"
+                    />
+                  </Field>
+                )}
+                {hasPack && (
+                  <Field label={`${p.packName ?? 'Pack'} size (cards)`}>
+                    <input
+                      type="number"
+                      value={p.packSize ?? 0}
+                      onChange={(e) => setP({ ...p, packSize: +e.target.value })}
+                      className="input-premium text-sm"
+                      placeholder="e.g. 30"
+                    />
+                  </Field>
+                )}
+              </div>
+            )}
+
+            {currentPresetId === 'custom' && (
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <Field label="Card/medium name">
+                  <input
+                    value={p.cardName ?? ''}
+                    onChange={(e) => setP({ ...p, cardName: e.target.value })}
+                    className="input-premium text-sm"
+                    placeholder="e.g. Box"
+                  />
+                </Field>
+                <Field label="Card size (base units)">
+                  <input
+                    type="number"
+                    value={p.cardSize ?? 0}
+                    onChange={(e) => setP({ ...p, cardSize: +e.target.value })}
+                    className="input-premium text-sm"
+                  />
+                </Field>
+                <Field label="Pack name">
+                  <input
+                    value={p.packName ?? ''}
+                    onChange={(e) => setP({ ...p, packName: e.target.value })}
+                    className="input-premium text-sm"
+                    placeholder="e.g. Carton"
+                  />
+                </Field>
+                <Field label="Pack size (cards)">
+                  <input
+                    type="number"
+                    value={p.packSize ?? 0}
+                    onChange={(e) => setP({ ...p, packSize: +e.target.value })}
+                    className="input-premium text-sm"
+                  />
+                </Field>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Quantity *">
+            <Field label={`Quantity * (${p.baseUnitName ?? 'units'})`}>
               <input
                 type="number"
                 value={p.quantity}
@@ -287,7 +439,7 @@ function ProductDialog({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Cost price">
+            <Field label="Cost price (per base unit)">
               <input
                 type="number"
                 value={p.cost ?? 0}
@@ -295,7 +447,7 @@ function ProductDialog({
                 className="input-premium"
               />
             </Field>
-            <Field label="Sale price">
+            <Field label={`Sale price (per ${p.baseUnitName ?? 'unit'})`}>
               <input
                 type="number"
                 value={p.baseUnitSalePrice ?? 0}
@@ -304,6 +456,29 @@ function ProductDialog({
               />
             </Field>
           </div>
+
+          {/* Top-down pricing */}
+          {hasPack && (
+            <div className="border border-primary/30 rounded-lg p-3 bg-primary/5">
+              <div className="text-xs font-semibold text-primary mb-2">
+                💡 Top-down pricing: enter pack price, auto-calculate card + unit
+              </div>
+              <Field label={`${p.packName ?? 'Pack'} sale price`}>
+                <input
+                  type="number"
+                  value={p.packSalePrice ?? 0}
+                  onChange={(e) => handlePackPriceChange(+e.target.value)}
+                  className="input-premium"
+                  placeholder="Enter pack price to auto-calc"
+                />
+              </Field>
+              {hasCard && (
+                <div className="text-xs text-muted-foreground mt-2">
+                  → {p.cardName ?? 'Card'}: {formatCurrency(p.cardSalePrice ?? 0)} · {p.baseUnitName ?? 'unit'}: {formatCurrency(p.baseUnitSalePrice ?? 0)}
+                </div>
+              )}
+            </div>
+          )}
 
           <Field label="Expiry date (optional)">
             <input

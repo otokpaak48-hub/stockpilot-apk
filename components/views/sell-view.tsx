@@ -79,8 +79,14 @@ export function SellView() {
     setCart((prev) => prev.map((c, i) => {
       if (i !== idx) return c;
       const newQty = Math.max(1, c.qty + delta);
-      if (newQty > c.product.quantity) {
-        toast({ type: 'warning', title: 'Stock limit', description: `Only ${c.product.quantity} available` });
+      // Convert to base units for stock check
+      const unitsPerLine = c.sellBy === 'pack'
+        ? newQty * (c.product.packSize ?? 1) * (c.product.cardSize ?? 1)
+        : c.sellBy === 'card'
+        ? newQty * (c.product.cardSize ?? 1)
+        : newQty;
+      if (unitsPerLine > c.product.quantity) {
+        toast({ type: 'warning', title: 'Stock limit', description: `Only ${c.product.quantity} ${c.product.baseUnitName ?? 'units'} available` });
         return c;
       }
       return { ...c, qty: newQty };
@@ -102,13 +108,23 @@ export function SellView() {
     }
 
     // Re-validate stock at sale time (prevents overselling on rapid clicks)
-    for (const line of cart) {
+    // Convert sell-by qty to base units for stock check
+    const lineBaseUnits = cart.map((line) => {
+      const unitsPerLine = line.sellBy === 'pack'
+        ? line.qty * (line.product.packSize ?? 1) * (line.product.cardSize ?? 1)
+        : line.sellBy === 'card'
+        ? line.qty * (line.product.cardSize ?? 1)
+        : line.qty;
+      return { line, unitsPerLine };
+    });
+
+    for (const { line, unitsPerLine } of lineBaseUnits) {
       const fresh = await db.products.get(line.product.id!);
-      if (!fresh || fresh.quantity < line.qty) {
+      if (!fresh || fresh.quantity < unitsPerLine) {
         toast({
           type: 'error',
           title: 'Stock changed',
-          description: `${line.product.name} now has ${fresh?.quantity ?? 0} units. Refresh cart.`,
+          description: `${line.product.name} now has ${fresh?.quantity ?? 0} ${line.product.baseUnitName ?? 'units'}. You need ${unitsPerLine}.`,
         });
         return;
       }
@@ -166,13 +182,13 @@ export function SellView() {
 
       // 3. Create stock movements + decrement stock (batch for performance)
       const movementsToAdd: Movement[] = [];
-      for (const line of cart) {
+      for (const { line, unitsPerLine } of lineBaseUnits) {
         const movementBase: Omit<Movement, 'id' | 'recordHash'> = {
           productId: line.product.id!,
           type: 'out',
           storeId: 1,
-          qty: -line.qty,
-          reason: `Sale ${receiptNumber}`,
+          qty: -unitsPerLine,
+          reason: `Sale ${receiptNumber} (${line.qty} ${line.sellBy === 'pack' ? (line.product.packName ?? 'pack') : line.sellBy === 'card' ? (line.product.cardName ?? 'card') : (line.product.baseUnitName ?? 'unit')})`,
           userId: user.id!,
           createdAt: Date.now(),
         };
@@ -181,10 +197,10 @@ export function SellView() {
       }
       const movementIds = await db.movements.bulkAdd(movementsToAdd, { allKeys: true });
 
-      // 4. Decrement stock in bulk
-      for (const line of cart) {
+      // 4. Decrement stock in bulk (in base units)
+      for (const { line, unitsPerLine } of lineBaseUnits) {
         await db.products.update(line.product.id!, {
-          quantity: line.product.quantity - line.qty,
+          quantity: line.product.quantity - unitsPerLine,
           updatedAt: Date.now(),
         });
       }
@@ -372,33 +388,86 @@ export function SellView() {
                 Tap products to add
               </div>
             )}
-            {cart.map((c, i) => (
-              <div key={i} className="bg-muted/40 rounded-lg p-2.5 space-y-2">
-                <div className="flex justify-between items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm truncate">{c.product.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {formatCurrency(c.unitPrice)} × {c.qty}
+            {cart.map((c, i) => {
+              const hasPack = (c.product.packSize ?? 0) > 0;
+              const hasCard = (c.product.cardSize ?? 0) > 0;
+              const hasUnits = hasPack || hasCard;
+              // Convert sell-by qty to base units for stock display
+              const baseUnitsPerLine = (() => {
+                if (c.sellBy === 'pack') return c.qty * (c.product.packSize ?? 1) * (c.product.cardSize ?? 1);
+                if (c.sellBy === 'card') return c.qty * (c.product.cardSize ?? 1);
+                return c.qty;
+              })();
+              return (
+                <div key={i} className="bg-muted/40 rounded-lg p-2.5 space-y-2">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-sm truncate">{c.product.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatCurrency(c.unitPrice)} × {c.qty} {c.sellBy === 'pack' ? (c.product.packName ?? 'pack') : c.sellBy === 'card' ? (c.product.cardName ?? 'card') : (c.product.baseUnitName ?? 'unit')}(s)
+                      </div>
+                      {hasUnits && c.sellBy !== 'base' && (
+                        <div className="text-[10px] text-info">= {baseUnitsPerLine} {c.product.baseUnitName ?? 'units'}</div>
+                      )}
                     </div>
-                  </div>
-                  <button onClick={() => removeLine(i)} className="btn-ghost p-1">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => updateQty(i, -1)} className="btn-ghost p-1">
-                      <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="font-semibold text-sm w-8 text-center">{c.qty}</span>
-                    <button onClick={() => updateQty(i, 1)} className="btn-ghost p-1">
-                      <Plus className="w-3.5 h-3.5" />
+                    <button onClick={() => removeLine(i)} className="btn-ghost p-1">
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <span className="font-bold text-sm">{formatCurrency(c.qty * c.unitPrice)}</span>
+                  {/* Sell-by selector */}
+                  {hasUnits && (
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => {
+                          const newSellBy = 'base';
+                          const newPrice = unitPrice(c.product, newSellBy);
+                          setCart((prev) => prev.map((l, idx) => idx === i ? { ...l, sellBy: newSellBy, unitPrice: newPrice } : l));
+                        }}
+                        className={`text-[10px] px-2 py-0.5 rounded ${c.sellBy === 'base' ? 'bg-primary text-white' : 'bg-muted'}`}
+                      >
+                        {c.product.baseUnitName ?? 'Unit'}
+                      </button>
+                      {hasCard && (
+                        <button
+                          onClick={() => {
+                            const newSellBy = 'card';
+                            const newPrice = unitPrice(c.product, newSellBy);
+                            setCart((prev) => prev.map((l, idx) => idx === i ? { ...l, sellBy: newSellBy, unitPrice: newPrice } : l));
+                          }}
+                          className={`text-[10px] px-2 py-0.5 rounded ${c.sellBy === 'card' ? 'bg-primary text-white' : 'bg-muted'}`}
+                        >
+                          {c.product.cardName ?? 'Card'}
+                        </button>
+                      )}
+                      {hasPack && (
+                        <button
+                          onClick={() => {
+                            const newSellBy = 'pack';
+                            const newPrice = unitPrice(c.product, newSellBy);
+                            setCart((prev) => prev.map((l, idx) => idx === i ? { ...l, sellBy: newSellBy, unitPrice: newPrice } : l));
+                          }}
+                          className={`text-[10px] px-2 py-0.5 rounded ${c.sellBy === 'pack' ? 'bg-primary text-white' : 'bg-muted'}`}
+                        >
+                          {c.product.packName ?? 'Pack'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => updateQty(i, -1)} className="btn-ghost p-1">
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="font-semibold text-sm w-8 text-center">{c.qty}</span>
+                      <button onClick={() => updateQty(i, 1)} className="btn-ghost p-1">
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <span className="font-bold text-sm">{formatCurrency(c.qty * c.unitPrice)}</span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="space-y-3 border-t border-border pt-3">
