@@ -8,14 +8,16 @@ import { useToast } from '@/hooks/use-toast';
 import { enqueueSync } from '@/lib/sync-engine';
 import { formatCurrency } from '@/lib/format';
 import {
-  Search, Plus, X, Package, Edit2, Trash2, AlertTriangle, Folder,
+  Search, Plus, X, Package, Edit2, Trash2, AlertTriangle, Folder, Upload,
 } from 'lucide-react';
+import { CSVImportDialog } from '@/components/csv-import-dialog';
 
 export function ProductsView() {
   const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState<number | 'all'>('all');
   const [showAdd, setShowAdd] = useState(false);
+  const [showCSV, setShowCSV] = useState(false);
   const [editProduct, setEditProduct] = useState<Product | null>(null);
 
   const categories = useLiveQuery(() => db.categories.toArray(), []) ?? [];
@@ -82,9 +84,14 @@ export function ProductsView() {
           <h1 className="text-2xl font-bold">Products</h1>
           <p className="text-sm text-muted-foreground">{products.length} item(s) in inventory</p>
         </div>
-        <button onClick={() => { setEditProduct(null); setShowAdd(true); }} className="btn-primary flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Add Product
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowCSV(true)} className="btn-secondary flex items-center gap-2">
+            <Upload className="w-4 h-4" /> Import CSV
+          </button>
+          <button onClick={() => { setEditProduct(null); setShowAdd(true); }} className="btn-primary flex items-center gap-2">
+            <Plus className="w-4 h-4" /> Add Product
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -175,6 +182,15 @@ export function ProductsView() {
           categories={categories}
           onSave={handleSave}
           onClose={() => { setShowAdd(false); setEditProduct(null); }}
+        />
+      )}
+
+      {showCSV && (
+        <CSVImportDialog
+          onClose={() => setShowCSV(false)}
+          onComplete={() => {
+            // Products will auto-refresh via useLiveQuery
+          }}
         />
       )}
     </div>
