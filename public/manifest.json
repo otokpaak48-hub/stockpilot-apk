@@ -1,0 +1,24 @@
+{
+  "name": "StockPilot — Offline Inventory",
+  "short_name": "StockPilot",
+  "description": "Offline-first inventory management for African SMBs. POS, credit sales, multi-store, encrypted backups, sync.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#059669",
+  "theme_color": "#059669",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["business", "productivity", "finance"],
+  "icons": [
+    { "src": "/icons/icon-32.png",   "sizes": "32x32",   "type": "image/png" },
+    { "src": "/icons/icon-192.png",  "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png",  "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Quick Sale",       "url": "/?view=sell",       "short_name": "Sell" },
+    { "name": "Stock In",         "url": "/?view=movements",  "short_name": "Stock" },
+    { "name": "Reports",          "url": "/?view=reports",    "short_name": "Reports" }
+  ]
+}

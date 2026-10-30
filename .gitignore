@@ -1,0 +1,58 @@
+# ---- Node / Next.js ----
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# ---- Environment ----
+.env
+.env.local
+.env.*.local
+.env.production
+
+# ---- Capacitor / Android ----
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/captures/
+android/.idea/
+android/*.iml
+android/app/*.iml
+android/app/release/
+android/app/debug/
+*.keystore
+*.jks
+!debug.keystore
+
+# ---- iOS (if added later) ----
+ios/
+Pods/
+*.xcworkspace
+
+# ---- Generated keys & secrets ----
+download/license_keys.txt
+download/full_access_pins.txt
+download/tier_upgrade_keys.txt
+download/*.pdf
+*.pem
+*.p12
+
+# ---- Editor / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---- Misc ----
+.cache/
+coverage/
+*.swp
+.history/

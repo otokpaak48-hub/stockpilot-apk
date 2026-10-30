@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- StockPilot — app shortcuts (long-press icon → Quick Sale / Stock In / Reports) -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="quick_sale"
+        android:enabled="true"
+        android:icon="@mipmap/ic_stat_quick_sale"
+        android:shortcutShortLabel="@string/shortcut_quick_sale_short"
+        android:shortcutLongLabel="@string/shortcut_quick_sale_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.obandetechhub.stockpilot"
+            android:targetClass="com.obandetechhub.stockpilot.MainActivity"
+            android:data="stockpilot://view/sell" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="stock_in"
+        android:enabled="true"
+        android:icon="@mipmap/ic_stat_stock_in"
+        android:shortcutShortLabel="@string/shortcut_stock_in_short"
+        android:shortcutLongLabel="@string/shortcut_stock_in_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.obandetechhub.stockpilot"
+            android:targetClass="com.obandetechhub.stockpilot.MainActivity"
+            android:data="stockpilot://view/movements" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="reports"
+        android:enabled="true"
+        android:icon="@mipmap/ic_stat_reports"
+        android:shortcutShortLabel="@string/shortcut_reports_short"
+        android:shortcutLongLabel="@string/shortcut_reports_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.obandetechhub.stockpilot"
+            android:targetClass="com.obandetechhub.stockpilot.MainActivity"
+            android:data="stockpilot://view/reports" />
+    </shortcut>
+</shortcuts>

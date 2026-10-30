@@ -1,0 +1,45 @@
+// StockPilot — settings.gradle (Capacitor)
+include ':app'
+include ':capacitor-android'
+project(':capacitor-android').projectDir = new File('../node_modules/@capacitor/android/capacitor')
+
+include ':capacitor-app'
+project(':capacitor-app').projectDir = new File('../node_modules/@capacitor/android/capacitor-app')
+
+include ':capacitor-haptics'
+project(':capacitor-haptics').projectDir = new File('../node_modules/@capacitor/android/capacitor-haptics')
+
+include ':capacitor-status-bar'
+project(':capacitor-status-bar').projectDir = new File('../node_modules/@capacitor/android/capacitor-status-bar')
+
+include ':capacitor-splash-screen'
+project(':capacitor-splash-screen').projectDir = new File('../node_modules/@capacitor/android/capacitor-splash-screen')
+
+include ':capacitor-network'
+project(':capacitor-network').projectDir = new File('../node_modules/@capacitor/android/capacitor-network')
+
+include ':capacitor-preferences'
+project(':capacitor-preferences').projectDir = new File('../node_modules/@capacitor/android/capacitor-preferences')
+
+include ':capacitor-filesystem'
+project(':capacitor-filesystem').projectDir = new File('../node_modules/@capacitor/android/capacitor-filesystem')
+
+include ':capacitor-local-notifications'
+project(':capacitor-local-notifications').projectDir = new File('../node_modules/@capacitor/android/capacitor-local-notifications')
+
+include ':capacitor-share'
+project(':capacitor-share').projectDir = new File('../node_modules/@capacitor/android/capacitor-share')
+
+include ':capacitor-community-biometric-auth'
+project(':capacitor-community-biometric-auth').projectDir = new File('../node_modules/@capacitor-community/biometric-auth/android')
+
+include ':capacitor-community-bluetooth-serial'
+project(':capacitor-community-bluetooth-serial').projectDir = new File('../node_modules/@capacitor-community/bluetooth-serial/android')
+
+include ':capacitor-community-secure-storage'
+project(':capacitor-community-secure-storage').projectDir = new File('../node_modules/@capacitor-community/secure-storage/android')
+
+include ':capacitor-mlkit-barcode-scanning'
+project(':capacitor-mlkit-barcode-scanning').projectDir = new File('../node_modules/@capacitor-mlkit/barcode-scanning/android')
+
+apply from: 'capacitor.settings.gradle'

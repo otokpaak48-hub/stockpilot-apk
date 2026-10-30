@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StockPilot</string>
+    <string name="title_activity_main">StockPilot</string>
+    <string name="package_name">com.obandetechhub.stockpilot</string>
+    <string name="custom_url_scheme">com.obandetechhub.stockpilot</string>
+    <string name="shortcut_quick_sale_short">Sell</string>
+    <string name="shortcut_quick_sale_long">Quick Sale</string>
+    <string name="shortcut_stock_in_short">Stock</string>
+    <string name="shortcut_stock_in_long">Stock In</string>
+    <string name="shortcut_reports_short">Reports</string>
+    <string name="shortcut_reports_long">Reports</string>
+</resources>

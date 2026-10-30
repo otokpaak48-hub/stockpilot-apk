@@ -1,0 +1,106 @@
+// StockPilot — app/build.gradle
+// ------------------------------
+// Capacitor generates a baseline; we extend it for:
+//   - ProGuard / R8 (Layer 12 — code obfuscation + minification)
+//   - Release signing config (loaded from keystore.properties)
+//   - Java 17 toolchain
+
+apply plugin: 'com.android.application'
+
+android {
+    namespace "com.obandetechhub.stockpilot"
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.obandetechhub.stockpilot"
+        minSdk 24              // Android 7.0+ — covers 95%+ of Nigerian market
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        ndk { abiFilters [] }
+    }
+
+    // -------------------------------------------------------------------
+    // Signing — load keystore.properties (gitignored) for release builds
+    // -------------------------------------------------------------------
+    def keystoreProperties = new Properties()
+    def keystoreFile = rootProject.file("keystore.properties")
+    if (keystoreFile.exists()) {
+        keystoreProperties.load(new FileInputStream(keystoreFile))
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreFile.exists()) {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        release {
+            // Layer 12 — Anti-reverse-engineering
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
+            // Crashlytics / Play signing can be added here later
+        }
+    }
+
+    // Java 17 toolchain (Gradle 8+ requires JDK 17+)
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+repositories {
+    flatDir { dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs' }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:1.2.0"
+    implementation "androidx.core:core-splashscreen:1.0.1"
+    implementation "com.google.android.material:material:1.12.0"
+
+    // Capacitor core
+    implementation project(':capacitor-android')
+
+    // Capacitor plugins
+    implementation project(':capacitor-app')
+    implementation project(':capacitor-haptics')
+    implementation project(':capacitor-status-bar')
+    implementation project(':capacitor-splash-screen')
+    implementation project(':capacitor-network')
+    implementation project(':capacitor-preferences')
+    implementation project(':capacitor-filesystem')
+    implementation project(':capacitor-local-notifications')
+    implementation project(':capacitor-share')
+
+    // Community plugins
+    implementation project(':capacitor-community-biometric-auth')
+    implementation project(':capacitor-community-bluetooth-serial')
+    implementation project(':capacitor-community-secure-storage')
+
+    // ML Kit barcode scanning
+    implementation project(':capacitor-mlkit-barcode-scanning')
+
+    testImplementation "junit:junit:4.13.2"
+    androidTestImplementation "androidx.test.ext:junit:1.2.1"
+    androidTestImplementation "androidx.test.espresso:espresso-core:3.6.1"
+}
+
+// Apply Google Services plugin if you add Firebase later
+// apply plugin: 'com.google.gms.google-services'

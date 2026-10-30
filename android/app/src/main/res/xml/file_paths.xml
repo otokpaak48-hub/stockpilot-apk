@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider paths — for sharing backup files via WhatsApp/Drive -->
+<paths>
+    <external-files-path name="backups" path="StockPilot/" />
+    <external-path name="documents" path="." />
+    <cache-path name="cache" path="." />
+</paths>
